@@ -1,11 +1,9 @@
 # circuit-breaker
 
-Circuit breaker pattern for fault tolerance.""".
-
-Zero dependencies. Python 3.8+.
+Zero-dependency Python implementation.
 
 ## Usage
 
 ```bash
-python3 circuit_breaker.py --help
+python3 circuit_breaker.py
 ```
