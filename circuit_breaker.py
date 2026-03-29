@@ -1,50 +1,74 @@
 #!/usr/bin/env python3
-"""Circuit breaker pattern — zero-dep."""
-import time
+"""circuit_breaker - Circuit breaker pattern for fault tolerance."""
+import argparse, time, random, json
 
 class CircuitBreaker:
-    CLOSED="CLOSED"; OPEN="OPEN"; HALF_OPEN="HALF_OPEN"
-    def __init__(self, failure_threshold=3, recovery_timeout=5, success_threshold=2):
-        self.state=self.CLOSED; self.failures=0; self.successes=0
-        self.failure_threshold=failure_threshold
-        self.recovery_timeout=recovery_timeout
-        self.success_threshold=success_threshold
-        self.last_failure_time=0; self.log=[]
-    def call(self, fn, *args, **kwargs):
-        if self.state==self.OPEN:
-            if time.monotonic()-self.last_failure_time>self.recovery_timeout:
-                self.state=self.HALF_OPEN; self.log.append("→ HALF_OPEN")
-            else:
-                self.log.append(f"BLOCKED (OPEN)"); raise RuntimeError("Circuit is OPEN")
-        try:
-            result=fn(*args,**kwargs)
-            self._on_success(); return result
-        except Exception as e:
-            self._on_failure(); raise
-    def _on_success(self):
-        if self.state==self.HALF_OPEN:
-            self.successes+=1
-            if self.successes>=self.success_threshold:
-                self.state=self.CLOSED; self.failures=0; self.successes=0
-                self.log.append("→ CLOSED (recovered)")
-        self.failures=0
-    def _on_failure(self):
-        self.failures+=1; self.last_failure_time=time.monotonic()
-        if self.failures>=self.failure_threshold:
-            self.state=self.OPEN; self.log.append(f"→ OPEN (failures={self.failures})")
+    CLOSED = "closed"; OPEN = "open"; HALF_OPEN = "half_open"
 
-if __name__=="__main__":
-    cb=CircuitBreaker(failure_threshold=3,recovery_timeout=0.5)
-    call_count=[0]
-    def unreliable():
-        call_count[0]+=1
-        if call_count[0]<=4: raise ConnectionError("Service down")
-        return "OK"
-    for i in range(8):
+    def __init__(self, failure_threshold=5, recovery_timeout=10, success_threshold=3):
+        self.state = self.CLOSED
+        self.failure_count = 0; self.success_count = 0
+        self.failure_threshold = failure_threshold
+        self.recovery_timeout = recovery_timeout
+        self.success_threshold = success_threshold
+        self.last_failure_time = 0
+        self.total_calls = 0; self.total_failures = 0
+
+    def call(self, func, *args):
+        self.total_calls += 1
+        if self.state == self.OPEN:
+            if time.time() - self.last_failure_time >= self.recovery_timeout:
+                self.state = self.HALF_OPEN; self.success_count = 0
+            else:
+                raise Exception("Circuit is OPEN")
         try:
-            r=cb.call(unreliable)
-            print(f"  Call {i+1}: {r} [{cb.state}]")
+            result = func(*args)
+            self._on_success()
+            return result
         except Exception as e:
-            print(f"  Call {i+1}: {type(e).__name__} [{cb.state}]")
-        if cb.state==cb.OPEN: time.sleep(0.6)
-    print("Log:"); [print(f"  {l}") for l in cb.log]
+            self._on_failure()
+            raise
+
+    def _on_success(self):
+        if self.state == self.HALF_OPEN:
+            self.success_count += 1
+            if self.success_count >= self.success_threshold:
+                self.state = self.CLOSED; self.failure_count = 0
+        elif self.state == self.CLOSED:
+            self.failure_count = 0
+
+    def _on_failure(self):
+        self.total_failures += 1; self.failure_count += 1
+        self.last_failure_time = time.time()
+        if self.failure_count >= self.failure_threshold:
+            self.state = self.OPEN
+
+    def stats(self):
+        return {"state": self.state, "failures": self.failure_count,
+                "total_calls": self.total_calls, "total_failures": self.total_failures}
+
+def main():
+    p = argparse.ArgumentParser(description="Circuit breaker demo")
+    p.add_argument("-n", "--calls", type=int, default=30)
+    p.add_argument("--fail-rate", type=float, default=0.4)
+    p.add_argument("--threshold", type=int, default=3)
+    p.add_argument("--timeout", type=float, default=2)
+    args = p.parse_args()
+    cb = CircuitBreaker(args.threshold, args.timeout)
+    def unreliable_service():
+        if random.random() < args.fail_rate: raise Exception("Service failed")
+        return "OK"
+    successes = failures = blocked = 0
+    for i in range(args.calls):
+        try:
+            cb.call(unreliable_service); successes += 1
+            print(f"  Call {i}: OK [{cb.state}]")
+        except Exception as e:
+            if "OPEN" in str(e): blocked += 1; print(f"  Call {i}: BLOCKED [{cb.state}]")
+            else: failures += 1; print(f"  Call {i}: FAIL [{cb.state}]")
+        time.sleep(0.3)
+    print(f"\nResults: {successes} ok, {failures} failed, {blocked} blocked")
+    print(json.dumps(cb.stats(), indent=2))
+
+if __name__ == "__main__":
+    main()

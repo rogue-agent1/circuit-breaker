@@ -1,9 +1,11 @@
 # circuit-breaker
 
-Zero-dependency Python implementation.
+Circuit breaker pattern implementation.
+
+Zero dependencies. Python 3.8+.
 
 ## Usage
 
 ```bash
-python3 circuit_breaker.py
+python3 circuit_breaker.py --help
 ```
