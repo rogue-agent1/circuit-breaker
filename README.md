@@ -1,9 +1,13 @@
-# Circuit Breaker Pattern
+# Circuit Breaker
 
-Circuit Breaker Pattern — zero-dependency Python implementation.
+Circuit Breaker — zero-dependency, single-file Python CLI.
 
 ## Usage
 
 ```bash
-python3 circuit_breaker.py
+python3 circuit_breaker.py --help
 ```
+
+## License
+
+MIT
