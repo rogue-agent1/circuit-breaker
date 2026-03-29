@@ -1,13 +1,11 @@
-# Circuit Breaker
+# circuit-breaker
 
-Circuit Breaker — zero-dependency, single-file Python CLI.
+Circuit breaker pattern for fault tolerance.
 
 ## Usage
 
 ```bash
-python3 circuit_breaker.py --help
+python3 circuit_breaker.py test
 ```
 
-## License
-
-MIT
+Zero dependencies. Python 3.8+.
